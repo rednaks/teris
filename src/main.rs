@@ -21,6 +21,11 @@ pub struct WorldLimits {
 pub struct World {
     pub current_block: Block,
     pub blocks: Vec<Block>,
+}
+
+pub struct GameState {
+    pub score: i32,
+    pub game_over: bool,
     pub paused: bool,
 }
 
@@ -98,6 +103,17 @@ fn collide_with_other_block(world: &World) -> bool {
     false
 }
 
+fn check_new_block_position_is_filled(world: &World) -> bool {
+    for block in world.blocks.iter() {
+        if block.position.x == world.current_block.position.x
+            && block.position.y == world.current_block.position.y
+        {
+            return true;
+        }
+    }
+    false
+}
+
 fn left_block_detected(world: &World) -> bool {
     for block in world.blocks.iter() {
         if world.current_block.position.x - SQUARE_SIZE == block.position.x {
@@ -120,10 +136,7 @@ fn right_block_detected(world: &World) -> bool {
     return false;
 }
 
-fn update_world(world: &mut World, world_limits: &WorldLimits) {
-    if world.paused {
-        return;
-    }
+fn update_world(world: &mut World, world_limits: &WorldLimits) -> bool {
     if world.current_block.position.y + SQUARE_SIZE > WINDOW_HEIGHT as f32
         || collide_with_other_block(&world)
     {
@@ -140,6 +153,9 @@ fn update_world(world: &mut World, world_limits: &WorldLimits) {
                 h: SQUARE_SIZE,
             },
         };
+        if check_new_block_position_is_filled(&world) {
+            return true;
+        }
     } else {
         world.current_block.position.y += STEP_DOWN;
         world.current_block.rect.y += STEP_DOWN;
@@ -158,6 +174,8 @@ fn update_world(world: &mut World, world_limits: &WorldLimits) {
         world.current_block.position.x += STEP_HOR;
         world.current_block.rect.x += STEP_HOR;
     }
+
+    return false;
 }
 
 fn window_conf() -> Conf {
@@ -194,23 +212,41 @@ async fn main() {
                 h: SQUARE_SIZE,
             },
         },
-
-        paused: false,
     };
 
+    let mut game_state = GameState {
+        score: 0,
+        game_over: false,
+        paused: false,
+    };
     loop {
         if ui::root_ui().button(None, "Pause") {
-            world.paused = !world.paused;
+            game_state.paused = !game_state.paused;
+        }
+
+        if ui::root_ui().button(None, "Game Over") {
+            game_state.game_over = !game_state.game_over;
         }
 
         clear_background(BLACK);
-
         draw_grid(&world_limits);
         draw_world_limits(&world_limits);
 
         draw_world(&world);
 
-        update_world(&mut world, &world_limits);
+        if !(game_state.paused || game_state.game_over) {
+            game_state.game_over = update_world(&mut world, &world_limits);
+        }
+
+        if game_state.game_over {
+            draw_text(
+                "Game Over!",
+                screen_center_x - 120.0,
+                WINDOW_HEIGHT as f32 / 2.0,
+                60.0,
+                WHITE,
+            );
+        }
 
         next_frame().await
     }
