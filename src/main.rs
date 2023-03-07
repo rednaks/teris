@@ -1,9 +1,16 @@
-use macroquad::{miniquad::conf::Platform, prelude::*};
+use macroquad::prelude::*;
+use macroquad::ui;
 
 #[derive(Debug, Clone)]
 pub struct Position {
     pub x: f32,
     pub y: f32,
+}
+
+#[derive(Debug, Clone)]
+pub struct Block {
+    pub position: Position,
+    pub rect: Rect,
 }
 
 pub struct WorldLimits {
@@ -12,8 +19,9 @@ pub struct WorldLimits {
 }
 
 pub struct World {
-    pub current_block: Position,
-    pub blocks: Vec<Position>,
+    pub current_block: Block,
+    pub blocks: Vec<Block>,
+    pub paused: bool,
 }
 
 const SQUARE_SIZE: f32 = 60.0;
@@ -62,16 +70,16 @@ fn draw_world_limits(world_limits: &WorldLimits) {
 
 fn draw_world(world: &World) {
     draw_rectangle(
-        world.current_block.x - SQUARE_SIZE / 2.0,
-        world.current_block.y,
+        world.current_block.position.x - SQUARE_SIZE / 2.0,
+        world.current_block.position.y,
         SQUARE_SIZE,
         SQUARE_SIZE,
         GREEN,
     );
     for block in world.blocks.iter() {
         draw_rectangle(
-            block.x - SQUARE_SIZE / 2.0,
-            block.y,
+            block.position.x - SQUARE_SIZE / 2.0,
+            block.position.y,
             SQUARE_SIZE,
             SQUARE_SIZE,
             BLUE,
@@ -81,34 +89,76 @@ fn draw_world(world: &World) {
 
 fn collide_with_other_block(world: &World) -> bool {
     for block in world.blocks.iter() {
-        if world.current_block.y + SQUARE_SIZE == block.y && block.x == world.current_block.x {
-            return true;
+        if
+        /*world.current_block.y + SQUARE_SIZE == block.y && */
+        block.position.x == world.current_block.position.x {
+            if let Some(_) = world.current_block.rect.intersect(block.rect) {
+                return true;
+            }
         }
     }
     false
 }
 
+fn left_block_detected(world: &World) -> bool {
+    for block in world.blocks.iter() {
+        if world.current_block.position.x - SQUARE_SIZE == block.position.x {
+            if let Some(_) = world.current_block.rect.intersect(block.rect) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+fn right_block_detected(world: &World) -> bool {
+    for block in world.blocks.iter() {
+        if world.current_block.position.x + SQUARE_SIZE == block.position.x {
+            if let Some(_) = world.current_block.rect.intersect(block.rect) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
 fn update_world(world: &mut World, world_limits: &WorldLimits) {
-    if world.current_block.y + SQUARE_SIZE > WINDOW_HEIGHT as f32
+    if world.paused {
+        return;
+    }
+    if world.current_block.position.y + SQUARE_SIZE > WINDOW_HEIGHT as f32
         || collide_with_other_block(&world)
     {
         world.blocks.push(world.current_block.clone());
-        world.current_block = Position {
-            x: (world_limits.left + world_limits.right) / 2.0,
-            y: 0.0,
+        world.current_block = Block {
+            position: Position {
+                x: (world_limits.left + world_limits.right) / 2.0,
+                y: 0.0,
+            },
+            rect: Rect {
+                x: (world_limits.left + world_limits.right) / 2.0,
+                y: 0.0,
+                w: SQUARE_SIZE,
+                h: SQUARE_SIZE,
+            },
         };
     } else {
-        world.current_block.y += STEP_DOWN;
+        world.current_block.position.y += STEP_DOWN;
+        world.current_block.rect.y += STEP_DOWN;
     }
 
     if is_key_pressed(KeyCode::Left)
-        && world.current_block.x - SQUARE_SIZE / 2.0 > world_limits.left
+        && !left_block_detected(&world)
+        && world.current_block.position.x - SQUARE_SIZE / 2.0 > world_limits.left
     {
-        world.current_block.x -= STEP_HOR;
+        world.current_block.position.x -= STEP_HOR;
+        world.current_block.rect.x -= STEP_HOR;
     } else if is_key_pressed(KeyCode::Right)
-        && world.current_block.x + SQUARE_SIZE / 2.0 < world_limits.right
+        && !right_block_detected(&world)
+        && world.current_block.position.x + SQUARE_SIZE / 2.0 < world_limits.right
     {
-        world.current_block.x += STEP_HOR;
+        world.current_block.position.x += STEP_HOR;
+        world.current_block.rect.x += STEP_HOR;
     }
 }
 
@@ -134,13 +184,27 @@ async fn main() {
 
     let mut world = World {
         blocks: Vec::new(),
-        current_block: Position {
-            x: screen_center_x,
-            y: 0.0,
+        current_block: Block {
+            position: Position {
+                x: screen_center_x,
+                y: 0.0,
+            },
+            rect: Rect {
+                x: screen_center_x,
+                y: 0.0,
+                w: SQUARE_SIZE,
+                h: SQUARE_SIZE,
+            },
         },
+
+        paused: false,
     };
 
     loop {
+        if ui::root_ui().button(None, "Pause") {
+            world.paused = !world.paused;
+        }
+
         clear_background(BLACK);
 
         draw_grid(&world_limits);
