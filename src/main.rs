@@ -89,9 +89,7 @@ fn draw_world(world: &World) {
 
 fn collide_with_other_block(world: &World) -> bool {
     for block in world.blocks.iter() {
-        if
-        /*world.current_block.y + SQUARE_SIZE == block.y && */
-        block.position.x == world.current_block.position.x {
+        if block.position.x == world.current_block.position.x {
             if let Some(_) = world.current_block.rect.intersect(block.rect) {
                 return true;
             }
